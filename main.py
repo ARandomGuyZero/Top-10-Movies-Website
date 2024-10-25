@@ -7,11 +7,15 @@ Date: October 25th 2024
 This code generates webpage where you can post your own favorite movies
 """
 
-from flask import Flask, render_template
+from flask import Flask, render_template, request, url_for
 from flask_bootstrap import Bootstrap5
 from flask_sqlalchemy import SQLAlchemy
+from flask_wtf import FlaskForm
 from sqlalchemy import Integer, String, Float
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from werkzeug.utils import redirect
+from wtforms.fields.simple import StringField, SubmitField
+from wtforms.validators import DataRequired, Length
 
 # Creates a new app for the website
 app = Flask(__name__)
@@ -47,6 +51,15 @@ class Movies(db.Model):
 # Creates all the tables
 with app.app_context():
     db.create_all()
+
+
+# Creates a new form Edit
+class EditForm(FlaskForm):
+    rating = StringField(f'Your rating out of 10 e.g. 7.5', validators=[DataRequired(), Length(max=250)])
+    review = StringField(f'Your review', validators=[DataRequired(), Length(max=500)])
+    submit = SubmitField(label="Done")
+
+
 """
 with app.app_context():
     new_movie = Movies(
@@ -71,6 +84,28 @@ def home():
     """
     movies = db.session.execute(db.select(Movies).order_by(Movies.rating)).scalars()
     return render_template("index.html", movies=movies)
+
+
+@app.route("/edit", methods=["GET", "POST"])
+def edit():
+    """
+    Renders the edit.html page
+    :return:
+    """
+    movie_id = request.args.get("movie_id")
+    edit_form = EditForm()
+    # IF the user presses the button
+    if request.method == "POST":
+        # Select the movie from the database
+        movie_to_update = db.get_or_404(Movies, movie_id)
+        # Update the data
+        movie_to_update.rating = request.form["rating"]
+        movie_to_update.review = request.form["review"]
+        db.session.commit()
+
+        return redirect(url_for("home"))
+
+    return render_template("edit.html", form=edit_form)
 
 
 @app.route("/add")
