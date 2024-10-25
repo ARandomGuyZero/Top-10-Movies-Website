@@ -94,18 +94,43 @@ def edit():
     """
     movie_id = request.args.get("movie_id")
     edit_form = EditForm()
-    # IF the user presses the button
+
+    # If the user presses the button
     if request.method == "POST":
         # Select the movie from the database
         movie_to_update = db.get_or_404(Movies, movie_id)
+
         # Update the data
         movie_to_update.rating = request.form["rating"]
         movie_to_update.review = request.form["review"]
+
+        # Saves changes
         db.session.commit()
 
         return redirect(url_for("home"))
 
     return render_template("edit.html", form=edit_form)
+
+
+@app.route("/delete")
+def delete():
+    """
+    Deletes a row from the table Movies
+    :return:
+    """
+    # Gets the movie_id from the GET method
+    movie_id = request.args.get("movie_id")
+
+    # Gets the row of the movie to delete
+    movie_to_delete = (db.get_or_404(Movies, movie_id))
+
+    # Deletes the row of the movie
+    db.session.delete(movie_to_delete)
+
+    # Saves changes
+    db.session.commit()
+
+    return redirect(url_for("home"))
 
 
 @app.route("/add")
