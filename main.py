@@ -81,7 +81,18 @@ def home():
     Renders the index.html page
     :return:
     """
-    movies = db.session.execute(db.select(Movies).order_by(Movies.rating)).scalars()
+
+    # Gets all the movies
+    movies = db.session.execute(db.select(Movies).order_by(Movies.rating)).scalars().all()
+
+    # For each movie in the movies
+    for i in range(len(movies)):
+        # Updates the ranking by getting the iterator value
+        movies[i].ranking = len(movies) - i
+
+    # Saves changes
+    db.session.commit()
+
     return render_template("index.html", movies=movies)
 
 
