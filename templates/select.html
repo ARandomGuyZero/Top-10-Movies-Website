@@ -5,9 +5,12 @@
 {% block content %}
 <div class="container">
     <h1 class="heading">Select Movie</h1>
-  <p>
-    <a href="#"> MOVIE TITLE - MOVIE RELEASE DATE</a>
-  </p>
+
+    {% for result in results.results %}
+    <p>
+        <a href="{{ url_for('add_database', title=result.original_title, date=result.release_date, description=result.overview, img_url=result.poster_path) }}"> {{ result.original_title }} - {{ result.release_date }}</a>
+    </p>
+    {% endfor %}
 
 </div>
 {% endblock %}

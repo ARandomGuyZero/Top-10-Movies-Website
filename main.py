@@ -6,16 +6,25 @@ Date: October 25th 2024
 
 This code generates webpage where you can post your own favorite movies
 """
+from os import environ
 
+from dotenv import load_dotenv
 from flask import Flask, render_template, request, url_for
 from flask_bootstrap import Bootstrap5
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm
+from requests import get
 from sqlalchemy import Integer, String, Float
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from werkzeug.utils import redirect
 from wtforms.fields.simple import StringField, SubmitField
 from wtforms.validators import DataRequired, Length
+
+load_dotenv()
+
+url = "https://api.themoviedb.org/3/search/movie"
+
+API_KEY = environ["API_KEY"]
 
 # Creates a new app for the website
 app = Flask(__name__)
@@ -42,9 +51,9 @@ class Movies(db.Model):
     title: Mapped[str] = mapped_column(String(250), unique=True, nullable=False)
     year: Mapped[int] = mapped_column(Integer, nullable=False)
     description: Mapped[str] = mapped_column(String(500), nullable=False)
-    rating: Mapped[float] = mapped_column(Float, nullable=False)
-    ranking: Mapped[int] = mapped_column(Integer, nullable=False)
-    review: Mapped[str] = mapped_column(String(500), nullable=False)
+    rating: Mapped[float] = mapped_column(Float, nullable=True)
+    ranking: Mapped[int] = mapped_column(Integer, nullable=True)
+    review: Mapped[str] = mapped_column(String(500), nullable=True)
     img_url: Mapped[str] = mapped_column(String(500), nullable=False)
 
 
@@ -55,25 +64,15 @@ with app.app_context():
 
 # Creates a new form Edit
 class EditForm(FlaskForm):
-    rating = StringField(f'Your rating out of 10 e.g. 7.5', validators=[DataRequired(), Length(max=250)])
-    review = StringField(f'Your review', validators=[DataRequired(), Length(max=500)])
+    rating = StringField(f'Your Rating out of 10 e.g. 7.5', validators=[DataRequired(), Length(max=250)])
+    review = StringField(f'Your Review', validators=[DataRequired(), Length(max=500)])
     submit = SubmitField(label="Done")
 
 
-"""
-with app.app_context():
-    new_movie = Movies(
-        title="Phone Booth",
-        year=2002,
-        description="Publicist Stuart Shepard finds himself trapped in a phone booth, pinned down by an extortionist's sniper rifle. Unable to leave or receive outside help, Stuart's negotiation with the caller leads to a jaw-dropping climax.",
-        rating=7.3,
-        ranking=10,
-        review="My favourite character was the caller.",
-        img_url="https://image.tmdb.org/t/p/w500/tjrX2oWRCM3Tvarz38zlZM7Uc10.jpg"
-    )
-    db.session.add(new_movie)
-    db.session.commit()
-"""
+# Creates a new form Add
+class AddForm(FlaskForm):
+    movie = StringField(f'Movie Title', validators=[DataRequired(), Length(max=500)])
+    submit = SubmitField(label="Done")
 
 
 @app.route("/")
@@ -84,6 +83,61 @@ def home():
     """
     movies = db.session.execute(db.select(Movies).order_by(Movies.rating)).scalars()
     return render_template("index.html", movies=movies)
+
+
+@app.route("/add", methods=["GET", "POST"])
+def add():
+    """
+    Renders the add.html page
+    :return:
+    """
+
+    add_form = AddForm()
+
+    if request.method == "POST":
+        parameters = {
+            "query": request.form["movie"]
+        }
+
+        headers = {
+            "accept": "application/json",
+            "Authorization": API_KEY
+        }
+
+        response = get(url, headers=headers, params=parameters).json()
+
+        return render_template("select.html", results=response)
+
+    return render_template("add.html", form=add_form)
+
+
+@app.route("/add_database", methods=["GET", "POST"])
+def add_database():
+    """
+    Adds the data from The Movie Database to our database
+    :return:
+    """
+    with app.app_context():
+        title = request.args.get("title")
+        # Formats the year [YYYY-MM-DD] to just get YYYY
+        year = request.args.get("date").split("-")[0]
+        # Adds a new movie
+        new_movie = Movies(
+            title=title,
+            year=year,
+            description=request.args.get("description"),
+            rating=None,
+            ranking=None,
+            review=None,
+            img_url="https://image.tmdb.org/t/p/w500" + request.args.get("img_url")
+        )
+        db.session.add(new_movie)
+        db.session.commit()
+
+        # Fetch the newly added movie by title
+        movie = db.session.execute(db.select(Movies).filter_by(title=title)).scalar_one()
+
+    return redirect(url_for("edit", movie_id=movie.id))
 
 
 @app.route("/edit", methods=["GET", "POST"])
@@ -131,15 +185,6 @@ def delete():
     db.session.commit()
 
     return redirect(url_for("home"))
-
-
-@app.route("/add")
-def add():
-    """
-    Renders the add.html page
-    :return:
-    """
-    return render_template("add.html")
 
 
 if __name__ == '__main__':
